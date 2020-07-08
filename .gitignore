@@ -37,3 +37,9 @@ vignettes/*.pdf
 
 # R Environment Variables
 .Renviron
+*VennDiagram*
+Archive
+Archive/*
+ctDNA_NSCLC_files*
+.gitignore
+.DS_Store

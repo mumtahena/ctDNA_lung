@@ -1,0 +1,276 @@
+---
+title: "Utility of Circulating Tumor DNA in Identifying Somatic Mutations and Tracking Tumor Evolution in Patients with Non-small Cell Lung Cancer"
+date: 01July2020,update:06July2020
+name: ctDNA_NSCLC.Rmd
+output: html_document
+purpose: Performs all analyses and generates main figures for the manuscript
+authors: Moom R. Roosan
+---
+
+```{r setup, include=FALSE,echo=FALSE}
+library(survival)
+library(survminer)
+#library(pheatmap)
+library(ComplexHeatmap)
+library(ggplot2)
+library(dplyr)
+library(tibble)
+library(GenVisR)
+library(reshape2)
+library(stringr)
+
+#options(repos=c(getOption("repos"), "http://ccb.nki.nl/software/discover/repos/r"))
+#install.packages("discover")
+library(discover)
+
+load("~/Documents/GitHub/ctDNA_lung/ctDNA.rda")
+
+```
+
+## Figure 1
+
+```{r Figure 1,echo=FALSE,cache=TRUE,warning=FALSE}
+mutation_priority<-c("Amplification","Duplication","Indels","Fusion","SNPs")
+mutationColours <- c("Amplification"='#4f00A8', "Duplication"='#ca66ae', "Indels"='#009933', "Fusion"='#ff9b34', "SNPs"='#A80079')
+
+clinicalData<-aggregate(Smoking.Status~Patient.ID+Gender,prep_gg,unique)
+gg_waterfall<-prep_gg[prep_gg$jfirstdate==prep_gg$Blood.Collection.Date,]
+mutationData<-prep_gg[,c("Patient.ID","Gene","category","Alteration")]
+clinicalData<-rbind(clinicalData,data.frame(Patient.ID=c(unique(gg_waterfall$Patient.ID[!gg_waterfall$Patient.ID%in%clinicalData$Patient.ID])),Gender=NA,Smoking.Status=NA))
+clinicalData<-clinicalData[order(clinicalData$Patient.ID),]
+
+names(clinicalData)[1]<-"sample"
+clinicalData<-melt(data=clinicalData,id.vars = c("sample"))
+clinicalData$value[clinicalData$value=="Unknown"]<-NA
+colnames(mutationData) <- c("sample", "gene", "variant_class", "alteration")
+
+
+#png(filename = "Figure1a.png",width = 14,height = 10,units = "in",res=1024)
+waterfall(
+  mutationData,
+  fileType = "Custom",
+  variant_class_order = mutation_priority,
+  mainPalette = mutationColours,
+  mainRecurCutoff = .05,
+  mainGrid = T,
+  main_geneLabSize = 12, mainLabelCol = NULL,
+  mainLabelSize = 3,
+  clinData = clinicalData,
+  clinLegCol = 2,
+  plotMutBurden = F,
+  clinVarOrder = c("Female","Male","smoker","non-smoker"),
+  clinVarCol = c("Female" = "pink", "Male" = "blue","smoker"="orange","non-smoker"="green"),
+  section_heights = c(0,5,2))
+#dev.off()
+
+pfs_ctdna<-ggsurvplot(
+  survfit(
+    Surv(I(jprog1date - jfirstdate)/30, progressedflag) ~ ctDNAM,
+    prep_gone,subset = (jprog1date - jfirstdate)>0
+  ),
+  legend.title = "Cumulative ctDNA",
+  palette = "jco",
+  legend.labs = c("High","Low"),
+  pval = TRUE,
+  pval.coord=c(12,0.85),
+  #risk.table = T,
+  xlab="Time (in months)",
+  ylab = "PFS Probability",
+  surv.median.line="hv",
+  break.time.by=6
+)
+
+os_ctdna<-ggsurvplot(
+  survfit(
+    Surv(I(jlastdate - jfirstdate)/30, dflag) ~ ctDNAM,
+    prep_gone,subset = (jlastdate - jfirstdate)>0
+  ),
+  legend.title = "Cumulative ctDNA",
+  palette = "jco",
+  legend.labs = c("High","Low"),
+  pval = TRUE,
+  pval.coord=c(12,0.85),
+  #risk.table = T,
+  xlab="Time (in months)",
+  ylab = "OS Probability",
+  surv.median.line="hv",
+  break.time.by=6
+)
+
+
+#png(filename = "Figure1bc.png",width = 8,height = 4,units = "in",res=2048)
+ggarrange(ggarrange(pfs_ctdna$plot,pfs_ctdna$table,ncol = 1,nrow = 2,heights = c(2,1),align = "v", legend = "none"),
+          ggarrange(os_ctdna$plot,os_ctdna$table,ncol = 1,nrow = 2,heights = c(2,1),align = "v",legend = "none"), ncol =2,
+          widths = c(1.25,1.5),common.legend = TRUE,legend = "bottom") # Second row with box and dot plots
+#dev.off()
+
+
+
+```
+## Figure 2
+```{r Figure 2,echo=FALSE,cache=TRUE}
+#png(filename = "Figure 2.png",width =9,height =8, units = "in",res = 1024)
+clinical<-subset(prep_gone,select=c("Patient.ID","Gender","Race","Cancer.Type","Smoking.Status","Stage"))
+clinical<-(clinical[duplicated(clinical)==F,])
+clinical<-clinical[duplicated(clinical$Patient.ID)==F,]
+clinical$Race[clinical$Race=="Unknown"]<-NA
+clinical$Smoking.Status[clinical$Smoking.Status=="Unknown"]<-NA
+clinical$Stage[clinical$Stage=="Unknown"]<-NA
+clinical<-clinical[order(clinical$Patient.ID),]
+clinical_simp_concor<-subset(clinical,clinical$Patient.ID%in%colnames(simp_concordance))
+col = c(tissue = "cadetblue4", blood = "brown3")
+
+oncoPrint(
+  simp_concordance,
+  alter_fun = list(
+    background = function(x, y, w, h)
+      grid.rect(x, y, w * 0.9, h * 0.9, gp = gpar(fill = "lightgrey", col = NA)),
+    tissue = function(x, y, w, h)
+      grid.rect(x, y, w * 0.9, h * 0.9,
+                gp = gpar(fill = col["tissue"], col = NA)),
+    blood = function(x, y, w, h)
+      grid.rect(x, y, w * 0.9, h * 0.4,
+                gp = gpar(fill = col["blood"], col = NA))
+  ),
+  col = col,
+  row_names_gp = gpar(fontsize = 14, fontface = 2),
+  column_names_gp = gpar(fontsize = 14, fontface = 2),
+  pct_gp = gpar(fontsize = 13, fontface = 2),
+  bottom_annotation = HeatmapAnnotation(Gender = clinical_simp_concor$Gender,
+                                        Smoking.status = clinical_simp_concor$Smoking.Status,na_col = "white",col = list(Gender=c(Female="pink",Male="blue"),Smoking.status=c(smoker="orange","non-smoker"="green")))
+)
+
+#dev.off()
+
+
+```
+## Figure 3
+
+```{r Figure 3,echo=FALSE,cache=TRUE}
+clinical_simp_concor_amp<-subset(clinical_simp_concor,clinical_simp_concor$Patient.ID%in%colnames(amp_all))
+
+amp<-
+  oncoPrint(
+  amp_all,
+  alter_fun = list(
+    background = function(x, y, w, h)
+      grid.rect(x, y, w * 0.9, h * 0.9, gp = gpar(fill = "lightgrey", col = NA)),
+    tissue = function(x, y, w, h)
+      grid.rect(x, y, w * 0.9, h * 0.9,
+                gp = gpar(fill = col["tissue"], col = NA)),
+    blood = function(x, y, w, h)
+      grid.rect(x, y, w * 0.9, h * 0.4,
+                gp = gpar(fill = col["blood"], col = NA))
+  ),
+  top_annotation = HeatmapAnnotation(
+    cbar = anno_oncoprint_barplot(),
+    annotation_height = unit(2, "cm")
+  ),
+  right_annotation = rowAnnotation(
+    rbar = anno_oncoprint_barplot(),
+    annotation_width = unit(2, "cm")
+  ),
+  col = col,
+  show_column_names = F,
+  row_names_gp = gpar(fontsize = 10),
+  column_names_gp = gpar(fontsize = 10),
+  pct_gp = gpar(fontsize = 10),
+  show_heatmap_legend = T,
+  bottom_annotation = HeatmapAnnotation(Gender = clinical_simp_concor_amp$Gender,
+                                        Smoking.status = clinical_simp_concor_amp$Smoking.Status,na_col = "white",col = list(Gender=c(Female="pink",Male="blue"),Smoking.status=c(smoker="orange","non-smoker"="green")))
+  
+)
+
+###%of actionable in tissue
+actionable<-c("ALK","EGFR","ERBB2","ROS1","BRAF","AKT1","PIK3CA","MTOR", "MET","RET")
+
+tissue_actionable<-sum(unlist(prep_founddf$Tissue.alt)%in%actionable)
+sum(apply(simp_concordance=="tissue",1,sum))
+
+##actionable % in tissue discordants
+
+tissue_actionable_discordant<-sum(apply(simp_concordance=="tissue",1,sum)[names(apply(simp_concordance=="tissue",1,sum))%in%actionable])
+
+##actionable %in blood
+blood_actionable<-sum(unlist(prep_founddf$Blood.alt)%in%actionable)
+
+
+blood_actionable_discordant<-sum(apply(simp_concordance=="blood",1,sum)[names(apply(simp_concordance=="blood",1,sum))%in%actionable])#/sum(apply(simp_concordance=="blood",1,sum))*100
+
+actionable_df<-data.frame(Actionable.Mutations=round(c(tissue_actionable,tissue_actionable_discordant,blood_actionable,blood_actionable_discordant),digits = 1),
+           Group=rep(c("All","Discordant Only"),2),
+           Source=rep(c("Tissue","ctDNA"),each=2))
+
+actionable_bar<-ggplot(data=actionable_df, aes(x=Group, y=Actionable.Mutations, fill=Source)) +
+  geom_bar(stat="identity", position=position_dodge())+
+  scale_fill_manual(values=c('brown3','cadetblue'))+
+  ylab("Number\n Actionable")+ xlab("")+
+  theme_minimal()
+ven <-
+    VennDiagram::venn.diagram(
+      list(ctDNA = prep_founddf[prep_founddf$Patient.ID %in% alk_blood$Patient.ID, 1], Tissue = prep_founddf[prep_founddf$Patient.ID %in%
+                                                                                                                        alk_tissue$Patient.ID, 1]),
+      col = "transparent",
+      fill = c("brown3", "cadetblue"),
+      filename = NULL,
+      alpha = c(0.5, 0.5),
+      cat.cex = 0.95
+    )
+grid.newpage()
+gb=grid.grabExpr(draw(amp))
+
+
+#png("Figure 3.png",height = 10,width=8,res = 1024)
+ggarrange(gb,ggarrange(ven,actionable_bar,ncol = 2,labels = c("B","C"),widths = c(1,1)),nrow = 2,labels = c("A"),heights = c(4,2))
+#dev.off()
+
+```
+
+## Figure 4
+```{r Figure 4, echo=FALSE,cache=TRUE}
+
+multi<-combo[!combo[,4]%in%c("TX","tissue"),]
+colnames(multi)<-c("Patient.ID","Mutations","Days.since.first.ctDNA.sample","ctDNA")
+multi$ctDNA<-as.integer(multi$ctDNA)
+pt_evolution<-function(pt){
+  multi_pt<-multi[multi$Patient.ID==pt,]
+  multi_pt$Mutations<-factor(multi_pt$Mutations)
+    return(ggplot(multi_pt, aes(x=Days.since.first.ctDNA.sample, y=ctDNA, group=Mutations,shape=Mutations,linetype=Mutations)) +
+    # ylim(c(0,10))+
+    scale_shape_manual(values=1:nlevels(multi_pt$Mutations)) +
+    scale_linetype_manual(values=1:nlevels(multi_pt$Mutations))+
+    ylab("ctDNA VAF%")+
+    xlab("Days since first ctDNA sample")+
+    #ggtitle(paste("Tumor evolution measured by ctDNA : ", pt, sep=" "))+
+    #facet_wrap(~Patient.ID,scales="free")+
+    geom_line(aes(linetype=Mutations,color=Mutations))+
+    geom_point(aes(shape=Mutations,color=Mutations),size=2)+
+     #theme_pubclean()
+      theme(plot.title = element_blank(),
+            legend.title = element_blank(),
+            legend.direction = "vertical",
+          axis.title.y = element_text(size = 8, face = "bold"),
+          #axis.title.x = element_blank(),
+          axis.text.x = element_text(size=8),
+          axis.text.y = element_text(size=8),
+          #title = element_text(size=12,face="bold"),
+          legend.text = element_text(size=8))
+
+    )
+}
+unique(multi$Patient.ID)
+g_1<-pt_evolution("G1")+ annotation_custom(grobTree(textGrob("Afatinib started at 64 days \n Clinical trial at 566 days \n Afatinib restarted at 628 days ", x=0.2,  y=0.8, hjust=0,
+                                                             gp=gpar(col="blue", fontsize=10, fontface="italic"))))
+
+g9<-pt_evolution("G9")+annotation_custom(grobTree(textGrob("Carboplatin/docetaxel started at 23 days \n Erlotinib started at 525 days \n Osimertinib started at 587 days ", x=0.2,  y=0.8, hjust=0,
+                                                           gp=gpar(col="blue", fontsize=10, fontface="italic"))))
+
+#png("Figure 4.png",height = 10,width = 10,units = "in",res = 1000)
+ggarrange(g_1,g9,heights = c(3,5),nrow= 2,labels = c("A","B"),legend = NULL)
+#dev.off()
+```
+
+```{r, echo=FALSE}
+time<-format(Sys.time(),"%a %b %d %X %Y")
+```
+This analysis was run on `r time` 
