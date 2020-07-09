@@ -11,8 +11,9 @@ prep_gg,prep_gone,prep_founddf,simp_concordance,amp_all,alk_blood,alk_tissue,mul
 3. prep_founddf: This dataframe contains 64 matched samples and their relevant information for concordance analyses
 4. simp_concordance: This is a simplified matrix indicating where gene level mutations were detected in the 64 matched ssamples.
 5. alk_blood and alk_tissue: These dataframes presentss patient data who are positive for ALK-EML4 fusion in ctDNA and tissue matched samples
-6. combo: This dataframe lists all the patient  info necessary for tumor evolution analysis in patients G1, G8, G9, G59 and G220. [ multi: This dataframe lists all the patient ctDNA VAF info necessary for tumor evolution analysis in patients G1, G8, G9, G59 and G220.]
+6. combo: This dataframe lists all the patient info - treatments and start date, tissue and ctDNA samples for tumor evolution analysis in patients G1, G8, G9, G59 and G220. 
 
+**all dates are in relation to the first ctDNA sample collection date in each patients.
 
 # Required R packages
 1. ggplot2
