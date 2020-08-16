@@ -27,14 +27,10 @@ load("~/Documents/GitHub/ctDNA_lung/ctDNA.rda")
 ```
 
 
+
 ## Figure 1
 
-![](Patient cohort ctDNA.png)
-
-
-## Figure 2
-
-```{r Figure 2,echo=FALSE,cache=TRUE,warning=FALSE}
+```{r Figure 1,echo=FALSE,cache=TRUE,warning=FALSE}
 mutation_priority<-c("Amplification","Duplication","Indels","Fusion","SNPs")
 mutationColours <- c("Amplification"='#4f00A8', "Duplication"='#ca66ae', "Indels"='#009933', "Fusion"='#ff9b34', "SNPs"='#A80079')
 
@@ -50,7 +46,7 @@ clinicalData$value[clinicalData$value=="Unknown"]<-NA
 colnames(mutationData) <- c("sample", "gene", "variant_class", "alteration")
 
 
-#png(filename = "Figure 2a.png",width = 14,height = 10,units = "in",res=1024)
+#png(filename = "Figure 1.png",width = 14,height = 10,units = "in",res=1024)
 waterfall(
   mutationData,
   fileType = "Custom",
@@ -68,12 +64,26 @@ waterfall(
   section_heights = c(0,5,2))
 #dev.off()
 
+
+
+
+
+```
+
+
+## Figure 2
+
+```{r Figure 2, cache=TRUE,echo=FALSE,warning=FALSE}
+
+sur<-(subset(prep_gone,select=c("Patient.ID","Age","Gender","Smoking.Status","ctDNAM","jlastdate","jfirstdate","dflag","jprog1date","progressedflag")))
+sur<-sur[complete.cases(sur),]
+
 pfs_ctdna<-ggsurvplot(
   survfit(
     Surv(I(jprog1date - jfirstdate)/30, progressedflag) ~ ctDNAM,
-    prep_gone,subset = (jprog1date - jfirstdate)>0
+    sur,subset = (jprog1date - jfirstdate)>0
   ),
-  legend.title = "Cumulative ctDNA",
+  legend.title = "Cumulative % ctDNA",
   palette = "jco",
   legend.labs = c("High","Low"),
   pval = TRUE,
@@ -84,13 +94,19 @@ pfs_ctdna<-ggsurvplot(
   surv.median.line="hv",
   break.time.by=6
 )
+ggforest(coxph(Surv(I(jprog1date-jfirstdate),progressedflag) ~ 
+                 ctDNAM,sur,subset=jprog1date > jfirstdate))
+pfs<-coxph(Surv(I(jprog1date-jfirstdate),progressedflag) ~ 
+            Age+Gender+Smoking.Status+ctDNAM,sur,
+          subset=jprog1date > jfirstdate)
+ggforest(pfs,data=sur[sur$jprog1date > sur$jfirstdate,])
 
 os_ctdna<-ggsurvplot(
   survfit(
     Surv(I(jlastdate - jfirstdate)/30, dflag) ~ ctDNAM,
-    prep_gone,subset = (jlastdate - jfirstdate)>0
+    sur,subset = (jlastdate - jfirstdate)>0
   ),
-  legend.title = "Cumulative ctDNA",
+  legend.title = "Cumulative % ctDNA",
   palette = "jco",
   legend.labs = c("High","Low"),
   pval = TRUE,
@@ -101,20 +117,73 @@ os_ctdna<-ggsurvplot(
   surv.median.line="hv",
   break.time.by=6
 )
+ggforest(coxph(Surv(I(jlastdate-jfirstdate),dflag) ~ 
+                 ctDNAM,sur,
+               subset=jlastdate > jfirstdate))
 
-
-#png(filename = "Figure2bc.png",width = 8,height = 4,units = "in",res=2048)
+#png(filename = "Figure2a.png",width = 8,height = 4,units = "in",res=2048)
 ggarrange(ggarrange(pfs_ctdna$plot,pfs_ctdna$table,ncol = 1,nrow = 2,heights = c(2,1),align = "v", legend = "none"),
           ggarrange(os_ctdna$plot,os_ctdna$table,ncol = 1,nrow = 2,heights = c(2,1),align = "v",legend = "none"), ncol =2,
           widths = c(1.25,1.5),common.legend = TRUE,legend = "bottom") # Second row with box and dot plots
 #dev.off()
-
+kras<-ggsurvplot(
+    survfit(Surv(I(
+      jlastdate - jfirstdate
+    )/30, dflag) ~ firstKRAS, prep_gone,
+    subset = jlastdate > jfirstdate),
+    pval = T,
+    title = "KRAS",
+    legend.title = "Mutation",
+    palette = "jama",
+    xlab="Time (in months)",
+    ylab = "OS Probability",
+    break.time.by=6,
+    legend.labs = c("Negative","Positive"),
+    risk.table = T
+  )
+    braf<-ggsurvplot(
+      survfit(Surv(I(
+        jlastdate - jfirstdate
+      )/30, dflag) ~ firstBRAF, prep_gone,
+      subset = jlastdate > jfirstdate),
+      pval = T,
+      title = "BRAF",
+      legend.title = "Mutation",
+      palette = "jama",
+      xlab="Time (in months)",
+      ylab = "OS Probability",
+      break.time.by=6,
+      legend.labs = c("Negative","Positive"),
+      risk.table = T
+    )
+    pik3ca<-ggsurvplot(
+      survfit(Surv(I(
+        jlastdate - jfirstdate
+      )/30, dflag) ~ firstPIK3CA, prep_gone,
+      subset = jlastdate > jfirstdate),
+      pval = T,
+      title = "PIK3CA",
+      legend.title = "Mutation",
+      palette = "jama",
+      xlab="Time (in months)",
+      ylab = "OS Probability",
+      break.time.by=6,      
+      legend.labs = c("Negative","Positive"),
+      risk.table = T
+    )
+single_mut<-(prep_gone[,c("Patient.ID","jlastdate","jfirstdate","Age","Gender","Smoking.Status","firstKRAS","firstPIK3CA","firstBRAF","dflag")])
+colnames(single_mut)[7:10]<-gsub(colnames(single_mut)[7:10],pattern = "first",replacement = "")
+mut_one<-ggforest(coxph(Surv(I(jlastdate-jfirstdate),dflag) ~
+Age+Gender+Smoking.Status+KRAS+PIK3CA+BRAF,single_mut,
+subset=jlastdate > jfirstdate))
+ #png("Figure 2.png",width =8,height=10,units = "in",res = 1024)   
+  ggarrange(pfs_ctdna[[1]],braf[[1]],pik3ca[[1]],kras[[1]],nrow = 2,ncol = 2,labels = c("A","B","C","D"),common.legend = F,legend = "bottom")  
+ # dev.off()
 
 
 ```
 
-
-## Figure 2
+## Figure 3
 
 ```{r Figure 3,echo=FALSE,cache=TRUE}
 #png(filename = "Figure 3.png",width =9,height =8, units = "in",res = 1024)
@@ -190,21 +259,50 @@ amp<-
   
 )
 
-###%of actionable in tissue
-actionable<-c("ALK","EGFR","ERBB2","ROS1","BRAF","AKT1","PIK3CA","MTOR", "MET","RET")
+dates<-aggregate(Blood.Collection.Date~Patient.ID,prep_gg,unique)
+targetable<-c("ALK","EGFR","ERBB2","ROS1","BRAF","AKT1","PIK3CA","MTOR", "MET","RET")
+actionable_mutations<-c("ALK-EML4 Fusion","EML4-ALK Fusion",
+                        "BRAF V600E",
+                        "EGFR Exon 19 Deletion", "EGFR L858R","EGFR L861Q","EGFR E746_A750del","EGFR L747_T751del","EGFR T790M","EGFR C797S","EGFR G719A","EGFR G719C","EGFR G719S","EGFR L747_P753delinsS","EGFR L747_A750delinsP","EGFR E746_T751delinsI","EGFR L747_T751delinsP","EGFR E746_S752delinsV","EGFR L747_A755delinsSKD","EGFR S752_I759del",
+                        "MET Exon 14 Skipping SNV",#"MET c.2888-22_2888-3del",
+                        "KIF5B-RET Fusion","NCOA4-RET Fusion",
+                        "CD74-ROS1 Fusion", "ROS1-CD74 Fusion",
+                        "NTRK1 Fusion")
+tot_alt<-sum(prep_gg$Gene!="None")
 
-tissue_actionable<-sum(unlist(prep_founddf$Tissue.alt)%in%actionable)
+#sum(prep_gg$Gene%in%targetable)
+#sum(prep_gg$Alteration.Details%in%actionable_mutations)
+#genes<-table(prep_gg$Gene)
+#sum(genes[names(genes)%in%targetable])/tot_alt*100
+#samples harboring mutations in targetable gene
+#nrow(aggregate(Gene~Patient.ID+Blood.Collection.Date,prep_gg[prep_gg$Gene%in%targetable,],unique))
+#samples harboring actionable mutations 
+#nrow(aggregate(Gene~Patient.ID+Blood.Collection.Date,prep_gg[prep_gg$Alteration.Details%in%actionable_mutations,],unique))
+
+
+#Percentages of samples harboring actionable mutations
+print(paste("Percentages of samples harboring at least one mutation in a targeteable gene",round(nrow(aggregate(Gene~Patient.ID+Blood.Collection.Date,prep_gg[prep_gg$Gene%in%targetable,],unique))
+/sum(unlist(lapply(dates[,2],length)))*100,digits = 1),"%",sep=" "))
+
+print(paste("Percentages of samples harboring at least one actionable mutation with currently available FDA-approved NSCLC treatment option ",round(nrow(aggregate(Alteration.Details~Patient.ID+Blood.Collection.Date,prep_gg[prep_gg$Alteration.Details%in%actionable_mutations,],unique))
+                                                                                                 /sum(unlist(lapply(dates[,2],length)))*100,digits = 1),"%",sep=" "))
+
+
+
+###%of actionable in tissue
+
+tissue_actionable<-sum(unlist(prep_founddf$Tissue.alt)%in%targetable)
 #sum(apply(simp_concordance=="tissue",1,sum))
 
 ##actionable % in tissue discordants
 
-tissue_actionable_discordant<-sum(apply(simp_concordance=="tissue",1,sum)[names(apply(simp_concordance=="tissue",1,sum))%in%actionable])
+tissue_actionable_discordant<-sum(apply(simp_concordance=="tissue",1,sum)[names(apply(simp_concordance=="tissue",1,sum))%in%targetable])
 
 ##actionable %in blood
-blood_actionable<-sum(unlist(prep_founddf$Blood.alt)%in%actionable)
+blood_actionable<-sum(unlist(prep_founddf$Blood.alt)%in%targetable)
 
 
-blood_actionable_discordant<-sum(apply(simp_concordance=="blood",1,sum)[names(apply(simp_concordance=="blood",1,sum))%in%actionable])#/sum(apply(simp_concordance=="blood",1,sum))*100
+blood_actionable_discordant<-sum(apply(simp_concordance=="blood",1,sum)[names(apply(simp_concordance=="blood",1,sum))%in%targetable])#/sum(apply(simp_concordance=="blood",1,sum))*100
 
 actionable_df<-data.frame(Actionable.Mutations=round(c(tissue_actionable,tissue_actionable_discordant,blood_actionable,blood_actionable_discordant),digits = 1),
            Group=rep(c("All","Discordant Only"),2),
@@ -236,11 +334,45 @@ ggarrange(gb,ggarrange(ven,actionable_bar,ncol = 2,labels = c("B","C"),widths = 
 ```
 
 ## Figure 5
-```{r Figure 5, echo=FALSE,cache=TRUE}
+```{r Figure 5, echo=FALSE,cache=FALSE}
 
-multi<-combo[!combo[,4]%in%c("TX","tissue"),]
+multi<-as.data.frame(combo[!combo[,4]%in%c("TX","tissue"),])
 colnames(multi)<-c("Patient.ID","Mutations","Days.since.first.ctDNA.sample","ctDNA")
-multi$ctDNA<-as.integer(multi$ctDNA)
+multi$ctDNA<-as.numeric(multi$ctDNA)
+multi$Mutations[multi$Mutations=="None NA"]<-"None"
+# multi_ampli<-multi[str_detect(multi$Mutations,pattern = "Amplification"),]
+# #multi_ampli<-multi_ampli[!is.na(multi_ampli$Copy.Number),]
+# multi<-multi[!str_detect(multi$Mutations,pattern = "Amplification"),]
+# multi<-multi[multi$Mutations!="None",]
+multi_pts<-c("G1","G59","G9","G220","G8")
+
+for(pt in multi_pts){
+  tmp<-subset(multi,multi$Patient.ID==pt)
+  d<-unique(tmp$Days.since.first.ctDNA.sample)
+  ga<-unique(tmp$Mutations)
+  for(i in d){
+    add_alt<-ga[!ga%in%tmp[tmp$Days.since.first.ctDNA.sample==i,"Mutations"]]
+    if(length(add_alt)>0){
+    tmp1<-matrix(0,ncol=4,nrow=length(add_alt),dimnames=list(c(1:length(add_alt)),c("Patient.ID","Mutations","Days.since.first.ctDNA.sample","ctDNA")))
+    tmp1[,1]<-pt
+    tmp1[,3]<-i
+    tmp1[,4]<-0
+
+    tmp1[,2]<-add_alt
+    multi<-rbind(multi,tmp1)
+    }
+  }
+  
+}
+
+
+multi_ampli<-multi[str_detect(multi$Mutations,pattern = "Amplification"),]
+
+multi<-multi[!str_detect(multi$Mutations,pattern = "Amplification"),]
+multi<-multi[multi$Mutations!="None",]
+multi$ctDNA<-as.numeric(multi$ctDNA)
+
+
 pt_evolution<-function(pt){
   multi_pt<-multi[multi$Patient.ID==pt,]
   multi_pt$Mutations<-factor(multi_pt$Mutations)
@@ -268,215 +400,34 @@ pt_evolution<-function(pt){
     )
 }
 #unique(multi$Patient.ID)
-g_1<-pt_evolution("G1")+ annotation_custom(grobTree(textGrob("Afatinib started at 64 days \n Clinical trial at 566 days \n Afatinib restarted at 628 days ", x=0.2,  y=0.8, hjust=0,
-                                                             gp=gpar(col="blue", fontsize=10, fontface="italic"))))
+
+g_1<-pt_evolution("G1")+ annotation_custom(grobTree(textGrob("Afatinib started at 64 days \n Clinical trial at 566 days \n Afatinib restarted at 628 days ", x=0.2,  y=0.7, hjust=0,
+                                                             gp=gpar(col="blue", fontsize=10, fontface="italic"))))+
+  annotation_custom(grobTree(textGrob("MYC Amplification at 958 days", x=0.4,  y=0.95, hjust=0,
+                                      gp=gpar(col="red", fontsize=8, fontface="bold"))))
 
 g9<-pt_evolution("G9")+annotation_custom(grobTree(textGrob("Carboplatin/docetaxel started at 23 days \n Erlotinib started at 525 days \n Osimertinib started at 587 days ", x=0.2,  y=0.8, hjust=0,
-                                                           gp=gpar(col="blue", fontsize=10, fontface="italic"))))
+                                                           gp=gpar(col="blue", fontsize=10, fontface="italic"))))+
+  annotation_custom(grobTree(textGrob("MET & CDK4 Amplification at 917 days\nCDK6 Amplification at 1008 days", x=0.3,  y=0.95, hjust=0,
+                                      gp=gpar(col="red", fontsize=8, fontface="bold"))))
+
+
 
 #png("Figure 5.png",height = 10,width = 10,units = "in",res = 1000)
 ggarrange(g_1,g9,heights = c(3,5),nrow= 2,labels = c("A","B"),legend = NULL)
 #dev.off()
+
+
 ```
-
-
 
 
 ## Supplemental Figure 1
 
-
-```{r Supplemental.Figure.1,echo=FALSE,cache=TRUE,warning=FALSE}
-##Supplemental Figure 1(A)
-###histogram of reported VAFs
-supp_1a<-ggplot(prep_gg,aes(x=ctDNA))+geom_histogram(color="brown3", fill="brown3")+
-  labs(x="ctDNA%", y = "VAF% of variants")+
-  theme_classic()+
-  font("xy.text",size = 14,color = "black")+font("xylab",size = 10,color = "black")+
-
-  annotate("text",
-    x=50,
-    y=500,
-    label=paste(
-      "Median: ",
-      median(prep_gg$ctDNA, na.rm = T),
-      "%",
-      "\n",
-      "Mean: ",
-      round(mean(prep_gg$ctDNA, na.rm = T), digit = 1),
-      "%",
-      "\n",
-      "Min: ",
-      min(prep_gg$ctDNA, na.rm = T),
-      "%",
-      "\n",
-      "Max: ",
-      round(max(prep_gg$ctDNA, na.rm = T), digit = 1),
-      "%",sep = ""
-    ))
-
-nccn_gg<-prep_gg[prep_gg$Gene%in%c("ALK","EGFR","ROS1","BRAF","NTRK1","NTRK2","KRAS"),]
-
-supp_1b<-ggplot(nccn_gg, aes(x=Gene, y=ctDNA)) + 
-  geom_violin()+labs(x="NCCN Genes", y = "ctDNA%",face="bold")+
-  geom_jitter(shape=16, position=position_jitter(0.2))+
-  scale_color_brewer(palette="Dark2")+
-  theme_classic()+font("xy.text",size = 14,color = "black")+font("xylab",size = 10,color = "black")
- 
-#png("Supplemental Figure 1",width = 6,height = 8,units = "in",res=1024)
-ggarrange(supp_1a,supp_1b,nrow=2,labels = c("A","B"))
-#dev.off()
+![](Patient cohort ctDNA.jpg)
 
 
-```
 
 ## Supplemental Figure 2
-```{r Supplemental.Figure.2,include=FALSE,cache=TRUE}
-##ctDNA VAF vs TCGA LUAD gene rank based on mutations
-ctdna_cases<-aggregate(Patient.ID~Gene,prep_gg, unique)
-ctdna_cases$cases<-unlist(lapply(ctdna_cases$Patient.ID,length))
-ctdna_cases$perct<- round(ctdna_cases$cases/370*100,digits = 1)
-
-
-
-gene_freq<-as.data.frame(table(prep_gg$Gene)[order(table(prep_gg$Gene),decreasing = T)])
-tcga<-read.table("frequently-mutated-genes.2020-05-22.tsv",sep = "\t",header = T)##LUAD+ LUSC
-names(tcga)<-c("cases","perct_cases")
-tcga<-data.frame(tcga[rownames(tcga)%in%ctdna_cases$Gene,])
-tcga$perct_cases<-round(tcga$perct_cases,digits = 1)
-tcga$Gene<-rownames(tcga)
-tcga$Cases.Source<-"TCGA_tissue"
-tcga<-tcga[order(tcga$perct_cases),c("Gene","perct_cases","Cases.Source")]
-
-ctdna_cases$Cases.Source<-"COH_ctDNA"
-ctdna_cases$perct_cases<-round(ctdna_cases$perct,digits = 1)
-ctdna_cases<-ctdna_cases[order(ctdna_cases$perct),c("Gene","perct_cases","Cases.Source")]
-ctdna_cases<-data.frame(ctdna_cases[ctdna_cases$Gene%in%rownames(tcga),])
-
-com_ctDNA_tcga<-rbind(tcga,ctdna_cases)
-com_ctDNA_tcga$perct_cases<- as.numeric(as.vector(com_ctDNA_tcga$perct_cases))
-com_ctDNA_tcga<-com_ctDNA_tcga[order(com_ctDNA_tcga$perct_cases,decreasing = T),]
-#Supplemental Figure 2
-#
-#tiff("Supplemental Figure 2.tiff",width = 6,height = 7,units = "in",res = 1024)
-ggdotchart(com_ctDNA_tcga, x = "Gene", y = "perct_cases",
-           color = "Cases.Source",                                # Color by groups
-           palette = c("brown3","#00AFBB"), # Custom color palette
-           sorting = "descending",                       # Sort value in descending order
-           add = "segments",                             # Add segments from y = 0 to dots
-           add.params = list(color = "lightgray", size = 2), # Change segment color and size
-           group = "Gene",                                # Order by groups
-           dot.size = 7.8,                                 # Large dot size
-           label = round(com_ctDNA_tcga$perct_cases,1),                        # Add mpg values as dot labels
-           font.label = list(color = "white", size = 8, 
-                             vjust = 0.5),              # Adjust label parameters
-          
-           ggtheme = theme_pubr()                        # ggplot2 theme
-)+
-  geom_hline(yintercept = 0, linetype = 2, color = "gray")+
-  labs( x = "Genes",y = " % Cases")+
-  theme(
-    axis.title.x = element_text(size = 14, face = "bold"),
-    axis.title.y = element_text(size = 14, face = "bold")
-  )
-
-#dev.off()
-```
-
-
-
-## Supplemental Figure 3
-
-```{r Supplemental Figure 3, echo=FALSE,cache=TRUE,warning=FALSE}
-kras<-ggsurvplot(
-    survfit(Surv(I(
-      jlastdate - jfirstdate
-    )/30, dflag) ~ firstKRAS, prep_gone,
-    subset = jlastdate > jfirstdate),
-    pval = T,
-    title = "KRAS",
-    legend.title = "Mutation",
-    palette = "jama",
-    xlab="Time (in months)",
-    ylab = "OS Probability",
-    break.time.by=6,
-    legend.labs = c("Negative","Positive"),
-    risk.table = T
-  )
-    erbb2<-ggsurvplot(
-    survfit(Surv(I(
-      jlastdate - jfirstdate
-    )/30, dflag) ~ firstERBB2, prep_gone,
-    subset = jlastdate > jfirstdate),
-    pval = T,
-    title = "ERBB2",
-    legend.title = "Mutation",
-    palette = "jama",
-    xlab="Time (in months)",
-    ylab = "OS Probability",
-    break.time.by=6,
-    legend.labs = c("Negative","Positive"),
-    risk.table = T
-  )
-  
-    braf<-ggsurvplot(
-      survfit(Surv(I(
-        jlastdate - jfirstdate
-      )/30, dflag) ~ firstBRAF, prep_gone,
-      subset = jlastdate > jfirstdate),
-      pval = T,
-      title = "BRAF",
-      legend.title = "Mutation",
-      palette = "jama",
-      xlab="Time (in months)",
-      ylab = "OS Probability",
-      break.time.by=6,
-      legend.labs = c("Negative","Positive"),
-      risk.table = T
-    )
-    pik3ca<-ggsurvplot(
-      survfit(Surv(I(
-        jlastdate - jfirstdate
-      )/30, dflag) ~ firstPIK3CA, prep_gone,
-      subset = jlastdate > jfirstdate),
-      pval = T,
-      title = "PIK3CA",
-      legend.title = "Mutation",
-      palette = "jama",
-      xlab="Time (in months)",
-      ylab = "OS Probability",
-      break.time.by=6,      
-      legend.labs = c("Negative","Positive"),
-      risk.table = T
-    )
-single_mut<-(prep_gone[,c("Patient.ID","jlastdate","jfirstdate","Age","Gender","Smoking.Status","firstKRAS","firstPIK3CA","firstERBB2","firstBRAF","dflag")])
-colnames(single_mut)[7:10]<-gsub(colnames(single_mut)[7:10],pattern = "first",replacement = "")
-mut_one<-ggforest(coxph(Surv(I(jlastdate-jfirstdate),dflag) ~
-Age+Gender+Smoking.Status+KRAS+PIK3CA+ERBB2+BRAF,single_mut,
-subset=jlastdate > jfirstdate))
- 
- #ggarrange(braf[[1]],erbb2[[1]],kras[[1]],pik3ca[[1]],nrow = 2,ncol = 2,labels = c("A","B","C","D"),common.legend = T,legend = "bottom")  
-  
- 
- # png("Supplemental Figure 3.png",width =8,height=12,units = "in",res = 1024)   
-  ggarrange(
-    ggarrange(
-      ggarrange(kras$plot,kras$table,nrow = 2,heights = c(2,1),legend = "none", align = "v"),
-      ggarrange(pik3ca$plot,pik3ca$table,nrow=2,heights = c(2,1),legend = "none",align = "v"),
-      ncol = 2,
-      labels = c("A","B")),
-    mut_one,
-    nrow = 2,
-    labels = c("A","C"),
-    heights = c(1,1)
-  )
-  #dev.off()
-  
- 
-
-
-```
-
-## Supplemental Figure 4
 
 ```{r Supplemental Figure 4,echo=FALSE, cache=TRUE}
 all_common<-c("ALK","ATM","BRAF","CDKN2A","CTNNB1","EGFR","ERBB2","EZH2","FBXW7", 
@@ -549,18 +500,23 @@ print(paste("Actionable discordant genes in the 64 tumor matched samples: ",roun
 
 ```
 
-##Supplemental Figure 5
+##Supplemental Figure 3
 
-```{r Supplemental.Figure.5,echo=F,cache=TRUE}
-g220<-pt_evolution("G220") + annotation_custom(grobTree(textGrob("Erlotinib started prior to day 0 \n Osimertinib started at 310 days ", x=0.1,  y=0.5, hjust=0,
-                                               gp=gpar(col="red", fontsize=10, fontface="italic"))))
+```{r Supplemental.Figure.3,echo=F,cache=FALSE}
 
-g59<-pt_evolution("G59")+annotation_custom(grobTree(textGrob("Erlotinib first-line prior to day 0\n Osimertinib second-line started at day 341", x=0.1,  y=0.5, hjust=0,
-                                                            gp=gpar(col="red", fontsize=10, fontface="italic"))))
 
-g8<-pt_evolution("G8")+annotation_custom(grobTree(textGrob("Carboplatin/alimta prior to day 0\n Osimertinib started at day 279", x=0.1,y=0.5, hjust=0,
-                                                           gp=gpar(col="red", fontsize=10, fontface="italic"))))
+g220<-pt_evolution("G220") + annotation_custom(grobTree(textGrob("Erlotinib started prior to day 0 \n Osimertinib started at 310 days ", x=0.05,  y=0.5, hjust=0,
+                                               gp=gpar(col="blue", fontsize=10, fontface="italic"))))
 
+g59<-pt_evolution("G59")+annotation_custom(grobTree(textGrob("Erlotinib first-line prior to day 0\n Osimertinib second-line started at day 341", x=0.35,  y=0.85, hjust=0,
+                                                            gp=gpar(col="blue", fontsize=10, fontface="italic"))))+
+  annotation_custom(grobTree(textGrob("CCNE1 Amplification at 831 days", x=0.7,  y=0.95, hjust=0,
+                                      gp=gpar(col="red", fontsize=8, fontface="bold"))))
+
+g8<-pt_evolution("G8")+annotation_custom(grobTree(textGrob("Carboplatin/alimta prior to day 0\n Osimertinib started at day 279", x=0.1,y=0.6, hjust=0,
+                                                           gp=gpar(col="blue", fontsize=10, fontface="italic"))))+
+  annotation_custom(grobTree(textGrob("FGFR1 Amplification at 694 days", x=0.2,  y=0.95, hjust=0,
+                                      gp=gpar(col="red", fontsize=8, fontface="bold"))))
 
 #png("Supplemental Figure 5.png",height = 8,width = 10,units = "in",res = 1000)
 ggarrange(g59,ggarrange(g8,g220,ncol = 2,labels =c("B","C"),legend = "bottom"),nrow= 2,heights = c(4,5),labels = "A")
