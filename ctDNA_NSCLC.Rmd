@@ -1,6 +1,6 @@
 ---
 title: "Utility of Circulating Tumor DNA in Identifying Somatic Mutations and Tracking Tumor Evolution in Patients with Non-small Cell Lung Cancer"
-date: 01July2020,update:06July2020
+date: 01July2020,update:06July2020, resubmission update:18January2021
 name: ctDNA_NSCLC.Rmd
 output: html_document
 purpose: Performs all analyses and generates main figures for the manuscript
@@ -43,10 +43,11 @@ clinicalData<-clinicalData[order(clinicalData$Patient.ID),]
 names(clinicalData)[1]<-"sample"
 clinicalData<-melt(data=clinicalData,id.vars = c("sample"))
 clinicalData$value[clinicalData$value=="Unknown"]<-NA
+clinicalData$value[clinicalData$value==""]<-NA
 colnames(mutationData) <- c("sample", "gene", "variant_class", "alteration")
 
 
-#png(filename = "Figure 1.png",width = 14,height = 10,units = "in",res=1024)
+#jpeg(filename = "~/Desktop/Chest Submission/Figure 1.jpeg",width = 190,height = 120,units = "mm",res=300)
 waterfall(
   mutationData,
   fileType = "Custom",
@@ -64,10 +65,6 @@ waterfall(
   section_heights = c(0,5,2))
 #dev.off()
 
-
-
-
-
 ```
 
 
@@ -77,23 +74,24 @@ waterfall(
 
 sur<-(subset(prep_gone,select=c("Patient.ID","Age","Gender","Smoking.Status","ctDNAM","jlastdate","jfirstdate","dflag","jprog1date","progressedflag")))
 sur<-sur[complete.cases(sur),]
-
 pfs_ctdna<-ggsurvplot(
   survfit(
     Surv(I(jprog1date - jfirstdate)/30, progressedflag) ~ ctDNAM,
     sur,subset = (jprog1date - jfirstdate)>0
   ),
-  legend.title = "Cumulative % ctDNA",
-  palette = "jco",
+  legend.title = "Cumul. % ctDNA",
+  palette = "jama",
   legend.labs = c("High","Low"),
   pval = TRUE,
   pval.coord=c(12,0.85),
-  #risk.table = T,
+  risk.table = T,
+  
   xlab="Time (in months)",
   ylab = "PFS Probability",
   surv.median.line="hv",
   break.time.by=6
 )
+
 ggforest(coxph(Surv(I(jprog1date-jfirstdate),progressedflag) ~ 
                  ctDNAM,sur,subset=jprog1date > jfirstdate))
 pfs<-coxph(Surv(I(jprog1date-jfirstdate),progressedflag) ~ 
@@ -117,15 +115,7 @@ os_ctdna<-ggsurvplot(
   surv.median.line="hv",
   break.time.by=6
 )
-ggforest(coxph(Surv(I(jlastdate-jfirstdate),dflag) ~ 
-                 ctDNAM,sur,
-               subset=jlastdate > jfirstdate))
 
-#png(filename = "Figure2a.png",width = 8,height = 4,units = "in",res=2048)
-ggarrange(ggarrange(pfs_ctdna$plot,pfs_ctdna$table,ncol = 1,nrow = 2,heights = c(2,1),align = "v", legend = "none"),
-          ggarrange(os_ctdna$plot,os_ctdna$table,ncol = 1,nrow = 2,heights = c(2,1),align = "v",legend = "none"), ncol =2,
-          widths = c(1.25,1.5),common.legend = TRUE,legend = "bottom") # Second row with box and dot plots
-#dev.off()
 kras<-ggsurvplot(
     survfit(Surv(I(
       jlastdate - jfirstdate
@@ -141,6 +131,7 @@ kras<-ggsurvplot(
     legend.labs = c("Negative","Positive"),
     risk.table = T
   )
+
     braf<-ggsurvplot(
       survfit(Surv(I(
         jlastdate - jfirstdate
@@ -281,13 +272,11 @@ tot_alt<-sum(prep_gg$Gene!="None")
 
 
 #Percentages of samples harboring actionable mutations
-print(paste("Percentages of samples harboring at least one mutation in a targeteable gene",round(nrow(aggregate(Gene~Patient.ID+Blood.Collection.Date,prep_gg[prep_gg$Gene%in%targetable,],unique))
-/sum(unlist(lapply(dates[,2],length)))*100,digits = 1),"%",sep=" "))
+#print(paste("Percentages of samples harboring at least one mutation in a targeteable gene",round(nrow(aggregate(Gene~Patient.ID+Blood.Collection.Date,prep_gg[prep_gg$Gene%in%targetable,],unique))
+#/sum(unlist(lapply(dates[,2],length)))*100,digits = 1),"%",sep=" "))
 
-print(paste("Percentages of samples harboring at least one actionable mutation with currently available FDA-approved NSCLC treatment option ",round(nrow(aggregate(Alteration.Details~Patient.ID+Blood.Collection.Date,prep_gg[prep_gg$Alteration.Details%in%actionable_mutations,],unique))
-                                                                                                 /sum(unlist(lapply(dates[,2],length)))*100,digits = 1),"%",sep=" "))
-
-
+#print(paste("Percentages of samples harboring at least one actionable mutation with currently available FDA-approved NSCLC treatment option ",round(nrow(aggregate(Alteration.Details~Patient.ID+Blood.Collection.Date,prep_gg[prep_gg$Alteration.Details%in%actionable_mutations,],unique))
+                                                                                      #           /sum(unlist(lapply(dates[,2],length)))*100,digits = 1),"%",sep=" "))
 
 ###%of actionable in tissue
 
@@ -336,16 +325,11 @@ ggarrange(gb,ggarrange(ven,actionable_bar,ncol = 2,labels = c("B","C"),widths = 
 ## Figure 5
 ```{r Figure 5, echo=FALSE,cache=FALSE}
 
-multi<-as.data.frame(combo[!combo[,4]%in%c("TX","tissue"),])
-colnames(multi)<-c("Patient.ID","Mutations","Days.since.first.ctDNA.sample","ctDNA")
-multi$ctDNA<-as.numeric(multi$ctDNA)
-multi$Mutations[multi$Mutations=="None NA"]<-"None"
-# multi_ampli<-multi[str_detect(multi$Mutations,pattern = "Amplification"),]
-# #multi_ampli<-multi_ampli[!is.na(multi_ampli$Copy.Number),]
-# multi<-multi[!str_detect(multi$Mutations,pattern = "Amplification"),]
-# multi<-multi[multi$Mutations!="None",]
-multi_pts<-c("G1","G59","G9","G220","G8")
 
+multi_pts<-c("G1","G59","G9","G220","G8", "G116","G146","G160","G167","G182","G252","G265","G317","G53","G70","G172")
+colnames(multi)[colnames(multi)=="Blood.Collection.Date"]<-"Days.since.first.ctDNA.sample"
+multi_all<-multi
+multi<-multi[,c("Patient.ID","Mutations","Days.since.first.ctDNA.sample","ctDNA")]
 for(pt in multi_pts){
   tmp<-subset(multi,multi$Patient.ID==pt)
   d<-unique(tmp$Days.since.first.ctDNA.sample)
@@ -365,25 +349,22 @@ for(pt in multi_pts){
   
 }
 
-
-multi_ampli<-multi[str_detect(multi$Mutations,pattern = "Amplification"),]
+multi_ampli<-multi_all[str_detect(multi_all$Mutations,pattern = "Amplification"),]
 
 multi<-multi[!str_detect(multi$Mutations,pattern = "Amplification"),]
 multi<-multi[multi$Mutations!="None",]
 multi$ctDNA<-as.numeric(multi$ctDNA)
-
-
 pt_evolution<-function(pt){
   multi_pt<-multi[multi$Patient.ID==pt,]
   multi_pt$Mutations<-factor(multi_pt$Mutations)
-    return(ggplot(multi_pt, aes(x=Days.since.first.ctDNA.sample, y=ctDNA, group=Mutations,shape=Mutations,linetype=Mutations)) +
-    # ylim(c(0,10))+
+  multi_pt$ctDNA<-as.numeric(multi_pt$ctDNA)
+  return(ggplot(multi_pt, aes(x=Days.since.first.ctDNA.sample, y=ctDNA, group=Mutations,shape=Mutations,linetype=Mutations)) +
     scale_shape_manual(values=1:nlevels(multi_pt$Mutations)) +
     scale_linetype_manual(values=1:nlevels(multi_pt$Mutations))+
     ylab("ctDNA VAF%")+
     xlab("Days since first ctDNA sample")+
-    #ggtitle(paste("Tumor evolution measured by ctDNA : ", pt, sep=" "))+
-    #facet_wrap(~Patient.ID,scales="free")+
+    ggtitle(paste("Tumor evolution measured by ctDNA : ", pt, sep=" "))+
+    facet_wrap(~Patient.ID,scales="free")+
     geom_line(aes(linetype=Mutations,color=Mutations))+
     geom_point(aes(shape=Mutations,color=Mutations),size=2)+
      #theme_pubclean()
@@ -399,7 +380,9 @@ pt_evolution<-function(pt){
 
     )
 }
-#unique(multi$Patient.ID)
+
+
+unique(multi$Patient.ID)
 
 g_1<-pt_evolution("G1")+ annotation_custom(grobTree(textGrob("Afatinib started at 64 days \n Clinical trial at 566 days \n Afatinib restarted at 628 days ", x=0.2,  y=0.7, hjust=0,
                                                              gp=gpar(col="blue", fontsize=10, fontface="italic"))))+
@@ -421,13 +404,13 @@ ggarrange(g_1,g9,heights = c(3,5),nrow= 2,labels = c("A","B"),legend = NULL)
 ```
 
 
-## Supplemental Figure 1
+## e-Figure 1
 
 ![](Patient cohort ctDNA.jpg)
 
 
 
-## Supplemental Figure 2
+## e-Figure 2
 
 ```{r Supplemental Figure 4,echo=FALSE, cache=TRUE}
 all_common<-c("ALK","ATM","BRAF","CDKN2A","CTNNB1","EGFR","ERBB2","EZH2","FBXW7", 
@@ -468,9 +451,9 @@ for(i in 1:nrow(prep_founddf)){
     c(common_genes_alt, intersect(prep_founddf$Blood.alt[[i]],
                                                               prep_founddf$Tissue.alt[[i]]))
 }
-print(paste("Discordant gene mutations in tissue only:",sum(table(tissue_disc[tissue_disc%in%all_common])),sep=" "))
-print(paste("Discordant gene mutations in ctDNA only:",sum(table(blood_disc[blood_disc%in%all_common])),sep=" "))
-print(paste("Concordant gene mutations in ctDNA and tissue:",sum(table(common_genes_alt)),sep=" "))
+#print(paste("Discordant gene mutations in tissue only:",sum(table(tissue_disc[tissue_disc%in%all_common])),sep=" "))
+#print(paste("Discordant gene mutations in ctDNA only:",sum(table(blood_disc[blood_disc%in%all_common])),sep=" "))
+#print(paste("Concordant gene mutations in ctDNA and tissue:",sum(table(common_genes_alt)),sep=" "))
 
 discord_blood<-data.frame(table(blood_disc))
 names(discord_blood)[1]<-"Gene"
@@ -494,13 +477,13 @@ ggarrange(mut_freq_founddf,ggarrange(disc_t,disc_b,ncol=2,labels = c("B","C")),n
 #dev.off()
 
 ##actionable % in discordant ctDNA
-print(paste("Actionable discordant genes in the 64 ctDNA matched samples: ",round(sum(discord_blood$Freq[discord_blood$Gene%in%actionable])/sum(discord_blood$Freq)*100,digits = 1),"%",sep=" "))
+#print(paste("Actionable discordant genes in the 64 ctDNA matched samples: ",round(sum(discord_blood$Freq[discord_blood$Gene%in%actionable])/sum(discord_blood$Freq)*100,digits = 1),"%",sep=" "))
 ##actionable % in discordant Tumor
-print(paste("Actionable discordant genes in the 64 tumor matched samples: ",round(sum(discord_tissue$Freq[discord_tissue$Gene%in%actionable])/sum(discord_tissue$Freq)*100,digits = 1),"%",sep=" "))
+#print(paste("Actionable discordant genes in the 64 tumor matched samples: ",round(sum(discord_tissue$Freq[discord_tissue$Gene%in%actionable])/sum(discord_tissue$Freq)*100,digits = 1),"%",sep=" "))
 
 ```
 
-##Supplemental Figure 3
+## e-Figure 3
 
 ```{r Supplemental.Figure.3,echo=F,cache=FALSE}
 
@@ -523,6 +506,49 @@ ggarrange(g59,ggarrange(g8,g220,ncol = 2,labels =c("B","C"),legend = "bottom"),n
 #dev.off()
 
 ```
+
+## e-Figure 4
+
+```{r Supplemental.Figure.4,echo=F,cache=FALSE}
+
+
+g_116<- pt_evolution(pt = "G116") #"MYC Amplification at 0 and 579 days\n EGFR Amplification at 579 days",
+g_146<-pt_evolution(pt = "G146")+labs(title="G146")
+g_160<-pt_evolution(pt = "G160")+labs(title="G160")
+g_167<-pt_evolution(pt = "G167")+labs(title="G167")
+
+#png("e figure 4.png",height = 10,width = 10,units = "in",res = 1000)
+ggarrange(g_116,g_146,g_160,g_167,labels=c("A","B","C","D"),ncol=2,nrow = 2)
+#dev.off()
+```
+
+## e-Figure 5
+```{r Supplemental.Figure.5,echo=F,cache=FALSE}
+g_182<-pt_evolution(pt = "G182")+labs(title="G182")
+g_252<-pt_evolution(pt = "G252")+labs(title="G252")
+g_265<-pt_evolution(pt = "G265")+labs(title="G265")
+g_317<-pt_evolution(pt = "G317")+labs(title="G317")
+
+#png("e figure 6.png",height = 10,width = 10,units = "in",res = 1000)
+ggarrange(g_182,g_252,g_265,g_317,labels=c("A","B","C","D"),ncol=2,nrow = 2)
+#dev.off()
+```
+
+```{r Supplemental.Figure.6,echo=F,cache=FALSE}
+g_53<-pt_evolution(pt = "G53")+labs(title="G53")
+g_70<-pt_evolution(pt = "G70")+labs(title="G70")
+g_172<-pt_evolution(pt = "G172")+labs(title="G172")
+g_90<-pt_evolution(pt = "G90")+labs(title="G90")
+g_98<-pt_evolution(pt = "G98")+labs(title="G98")
+
+
+#png("e figure 6.png",height = 10,width = 10,units = "in",res = 1000)
+ggarrange(g_53,g_70,g_172,g_90,g_98,labels=c("A","B","C","D","E"),ncol=2,nrow = 3)
+#dev.off()
+
+print("No somatic mutations were detected in patients G6 and G225 for any of the three ctDNA time points")
+```
+
 
 ```{r, echo=FALSE}
 time<-format(Sys.time(),"%a %b %d %X %Y")
