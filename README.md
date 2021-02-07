@@ -1,4 +1,4 @@
-# Utility of ctDNA in Non Small Cell Lung Cancer treated at the City of Hope
+# Utility of ctDNA in Non Small Cell Lung Cancer
 
 This repository presents the data and the analyses done for the manuscript "Utility of Circulating Tumor DNA in Identifying Somatic Mutations and Tracking Tumor Evolution in Patients with Non-small Cell Lung Cancer." `ctDNA.rda` R data has all the relevant datasets for the analysis.`ctDNA_NSCLC.Rmd`script has code for all the results described in the paper. 
 
